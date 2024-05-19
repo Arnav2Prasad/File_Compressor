@@ -51,3 +51,9 @@ void stack_push(stack* st,char ch);
 
 			
 char* extract_string(stack* st);
+
+int open_file_writing(char str[]);
+
+int open_file_reading(char str[]);
+
+int get_ascii_from_bits(char str[], int start);

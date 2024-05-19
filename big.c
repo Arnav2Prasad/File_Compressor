@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include<string.h>
 #include <stdlib.h>
 #include<unistd.h>
 #include<sys/types.h>
@@ -304,6 +305,118 @@ void print_encoding_table_encoding(encoding_table *et) {
 	return;
 }
 
+void put_encoding_table(int fd, encoding_table *et) {
+	int i;
+	// char tmp[1024];
+	char ch;
+	int j;
+	for(i = 0; i < et->len; i++) {
+		if(et->enc_arr[i].frequency != 0) {
+			ch = i;
+			write(fd, &ch, 1);
+			j = 0;
+
+			while(et->enc_arr[i].enc_key[j] != '\0') {
+				write(fd, &(et->enc_arr[i].enc_key[j]), 1);
+				j++;
+			}
+		}
+	}
+	ch = '$';
+	write(fd, &ch, 1);
+	printf("ended\n");
+	return;
+}
+
+void encode_file(char *file, encoding_table *et) {
+	int from = open_file_reading(file);
+	if(from == -1) {
+		printf("%s : open failed\n", file);
+		return;
+	}
+	
+	char tmp[1024];
+	strcpy(tmp, file);
+	strcat(tmp, "_inter");
+
+	int to = open_file_writing(tmp);
+	
+	if(to == -1) {
+		printf("%s : open failed\n", tmp);
+		return;
+	}
+
+	char ch_from;
+	char encoded_str[1024];
+	int i = 0;
+	while(read(from, &ch_from, 1)) {
+		strcpy(encoded_str, et->enc_arr[(int)ch_from].enc_key);
+		printf("code got for '%c' is %s\n", ch_from, encoded_str);
+		i = 0;
+		while(encoded_str[i] != '\0') {
+			write(to, &encoded_str[i], 1);
+			i++;
+		}
+	}
+	close(from);
+	close(to);
+	printf("ended\n");
+	int final;
+	char tmp1[1024];
+	strcpy(tmp1, file);
+	strcat(tmp1, "_compressed");
+	final = open_file_writing(tmp1);
+	if(final == -1) {
+		printf("%s : open failed\n", tmp1);
+		return;
+	}
+
+	put_encoding_table(final, et);
+	to = open_file_reading(tmp);
+	if(to == -1) {
+		printf("%s : open failed\n", tmp);
+	}
+	char buffer[16];
+	unsigned char ascii;
+	int result;
+	while((result = read(to, &buffer[0], 8))) {
+		buffer[8] = '\0';
+		printf("buffer = %s\n", buffer);
+		printf("result = %d\n", result);
+		ascii = get_ascii_from_bits(buffer, result);
+		printf("ascii = %d\n", ascii);
+		write(final, &ascii, 1);
+	}
+
+	return;
+}
+int get_ascii_from_bits(char str[], int start) {
+	int ascii = 0;
+	int i = start - 1;
+	int coeff = 1;
+	while(i >= 0) {
+		ascii += (str[i] - '0') * coeff;
+		coeff = coeff * 2;
+		i--;
+	}
+	return ascii;
+}
+int open_file_reading(char str[]) {
+	int fd = open(str, O_RDONLY);
+	if(fd == -1) {
+		return -1;
+	}
+	return fd;
+}
+
+int open_file_writing(char str[]) {
+	int fd = open(str, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+	if(fd == -1) {
+		return -1;
+	}
+	return fd;
+}
+
 int main(int argc, char *argv[]) {
 	if(argc != 2) {
 		return 1;
@@ -315,6 +428,7 @@ int main(int argc, char *argv[]) {
 	}
 	encoding_table * et;
 	et = get_character_freq_fromfile(fd);
+	close(fd);
 	print_encoding_table_freq(et);
 
 	huff_minheap *hp;
@@ -328,6 +442,26 @@ int main(int argc, char *argv[]) {
 	huffman_tree_inorder(ht);
 	get_encodings(ht, et);
 	print_encoding_table_encoding(et);
+
+	/*
+	int fd2;
+	char tmp[1024];
+	strcpy(tmp, argv[1]);
+	strcat(tmp, "_inter");
+
+	fd2 = open(tmp, O_WRONLY | O_CREAT, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+	if(fd2 == -1) {
+		printf("failed to create file\n");
+		return 1;
+	}
+	fd = open(argv[1], O_RDONLY);
+	if(fd == -1) {
+		printf("open failed\n");
+		return 1;
+	}
+	*/
+
+	encode_file(argv[1], et);
 	return 0;
 }
 
