@@ -1,5 +1,5 @@
 typedef struct huffman_node{
-	char character;
+	unsigned char character;
 	long long int freq;
 	long long int flag;
 	struct huffman_node* left;
