@@ -41,6 +41,9 @@ typedef struct encoding_table{
 	long long int len;
 }encoding_table;
 
+int mod(int x) {
+	return (x < 0) ? -x : x;
+}
 encoding_table * get_character_freq_fromfile(int fd) {
 	encoding_table *et;
 	et = (encoding_table * ) malloc(sizeof(encoding_table));
@@ -51,8 +54,12 @@ encoding_table * get_character_freq_fromfile(int fd) {
 		et->enc_arr[i].frequency = 0;
 		et->enc_arr[i].huff_ptr = NULL; 
 	}
-	char ch;
+	unsigned char ch;
 	while(read(fd, &ch, 1)) {
+		printf("character read is : %c, <%d>\n", ch, ch);
+		
+		printf("storing at index %lld\n", (long long int)(ch));
+
 		et->enc_arr[(long long int)(ch - '\0')].frequency += 1;
 	}
 	return et;
@@ -88,7 +95,7 @@ huffman_tree construct_huffman_tree(huff_minheap * hp) {
 		huff_minheap_print(hp);
 		if(h1) {
 			if(h1->flag == 1) {
-				printf("h1->character = '%c' ", h1->character);
+				printf("h1->character = '%c', <%d> ", h1->character, h1->character);
 			}
 			printf("h1->freq = %lld\n", h1->freq);
 		}
@@ -97,7 +104,7 @@ huffman_tree construct_huffman_tree(huff_minheap * hp) {
 		huff_minheap_print(hp);
 		if(h2) {
 			if(h2->flag == 1) {
-				printf("h2->character = '%c' ", h2->character);
+				printf("h2->character = '%c', <%d> ", h2->character, h2->character);
 			}
 			printf("h2->freq = %lld\n", h2->freq);
 		}
@@ -133,7 +140,7 @@ void get_encodings(huffman_tree ht, encoding_table *et) {
 	for(i = 0; i < ASCII_SIZE; i++) {
 		if(et->enc_arr[i].frequency != 0) {
 			stack *st = stack_init();
-			printf("getting encodings for %c\n", (int)i - '\0');
+			printf("getting encodings for %lld\n", i);
 			huffman_node *h_node = et->enc_arr[i].huff_ptr;
 			while(h_node->parent) {
 				if(h_node->parent->right == h_node) {
@@ -145,7 +152,7 @@ void get_encodings(huffman_tree ht, encoding_table *et) {
 				h_node = h_node->parent;
 			}
 			et->enc_arr[i].enc_key = extract_string(st);
-			printf("encoding for %c is %s\n", (int)i - '\0', et->enc_arr[i].enc_key);
+			printf("encoding for %c, <%lld> is %s\n", (char)i, i, et->enc_arr[i].enc_key);
 		}
 	}
 	return;
@@ -283,11 +290,11 @@ char* extract_string(stack* st){
 	return arr;
 }
 
-void print_encoding_table_freq(encoding_table *et) {
-	int i;
+void print_encoding_table_encoding_not_done(encoding_table *et) {
+	long long int i;
 	for(i = 0; i < et->len; i++) {
 		if(et->enc_arr[i].frequency != 0) {
-			printf("%c %lld\n", i - '\0', et->enc_arr[i].frequency);
+			printf("%c, <%lld>, freq = %lld\n", (char) i, i, et->enc_arr[i].frequency);
 		}
 	}
 	return;
@@ -295,16 +302,19 @@ void print_encoding_table_freq(encoding_table *et) {
 
 
 void print_encoding_table_encoding(encoding_table *et) {
-	int i;
+	long long int i;
 	for(i = 0; i < et->len; i++) {
 		if(et->enc_arr[i].frequency != 0) {
-			printf("%c %lld ", i - '\0', et->enc_arr[i].frequency);
-			printf("%s\n", et->enc_arr[i].enc_key);
+			printf("%c, <%lld>, freq = %lld", (char) i, i, et->enc_arr[i].frequency);
+			printf(", encoding = %s\n", et->enc_arr[i].enc_key);
 		}
 	}
 	return;
 }
 
+/* writes the encoding table into the file fd
+ * binary codes are written for characters with frequency more than zero
+ */
 void put_encoding_table(int fd, encoding_table *et) {
 	int i;
 	// char tmp[1024];
@@ -346,7 +356,7 @@ void encode_file(char *file, encoding_table *et) {
 		return;
 	}
 
-	char ch_from;
+	unsigned char ch_from;
 	char encoded_str[1024];
 	int i = 0;
 	while(read(from, &ch_from, 1)) {
@@ -385,6 +395,7 @@ void encode_file(char *file, encoding_table *et) {
 		printf("result = %d\n", result);
 		ascii = get_ascii_from_bits(buffer, result);
 		printf("ascii = %d\n", ascii);
+		printf("ascii in character format = %c\n", ascii);
 		write(final, &ascii, 1);
 	}
 
@@ -429,7 +440,7 @@ int main(int argc, char *argv[]) {
 	encoding_table * et;
 	et = get_character_freq_fromfile(fd);
 	close(fd);
-	print_encoding_table_freq(et);
+	print_encoding_table_encoding_not_done(et);
 
 	huff_minheap *hp;
 	hp = get_huff_minheap(et);
@@ -441,6 +452,7 @@ int main(int argc, char *argv[]) {
 	printf("printing inorder traversal of huffman tree\n");
 	huffman_tree_inorder(ht);
 	get_encodings(ht, et);
+
 	print_encoding_table_encoding(et);
 
 	/*
